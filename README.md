@@ -49,7 +49,7 @@ Each layer requires the previous layer's key. An attacker who doesn't know N see
 
 ## Encoding Approaches
 
-Four progressively sophisticated approaches are provided:
+Five encoding approaches are provided:
 
 | Approach | File | Key Features |
 |----------|------|--------------|
@@ -57,6 +57,7 @@ Four progressively sophisticated approaches are provided:
 | Analog Grayscale | `qr_static_analog.py` | Payload hidden in magnitude |
 | Two-Layer Recursive | `qr_static_layered.py` | Nested steganography |
 | Sliding Window | `qr_static_sliding.py` | Smooth carrier, no boundaries |
+| Binary Static | `qr_static_binary.py` | True static, 1 bit per pixel |
 
 ---
 
@@ -354,6 +355,140 @@ for i in range(150):
 
 ---
 
+## 5. Binary Static
+
+The most memory-efficient approach. Each frame is pure binary static — just black or white pixels, like real TV snow. Grayscale emerges from temporal accumulation, not per-frame values.
+
+```
+                         BINARY STATIC
+
+    Single frame (pure black/white):     Accumulated over N frames:
+    ┌──────────────────────────────┐     ┌──────────────────────────────┐
+    │██░░██░░░██░█░░██░░█░██░█░░░██│     │▓▓░░▒▒░░▓▓░░▒▒▒▒░░▓▓▒▒░░▓▓░░│
+    │░░██░░██░░░█░░░░██░░██░░░░██░░│     │░░▓▓░░▓▓░░░▒▒░░░░▓▓░░▓▓░░▓▓░░│
+    │██░░░█░█░░░█░░░░█░██░░░█░░░░██│     │▓▓░░░▒░▒▒░░▒░░░░▒░▓▓░░░▒░░░▓▓│
+    │░░██░░██░█░░██░░█░░░██░░██░░██│     │░░▓▓░░▓▓░▒░░▓▓░░▒░░░▓▓░░▓▓░░▓│
+    └──────────────────────────────┘     └──────────────────────────────┘
+    Looks like random noise              QR pattern emerges from density
+    (1 bit per pixel)                    (accumulated in int16)
+```
+
+### Key Insight
+
+The stream and accumulator have different needs:
+
+```
+Stream channel:     Just "nudges" — each pixel votes +1 or -1
+                    ┌─────────────────────────────────────┐
+                    │  Frame 0: +1 -1 +1 +1 -1 +1 -1 -1   │
+                    │  Frame 1: +1 +1 -1 +1 +1 -1 +1 -1   │
+                    │  Frame 2: -1 +1 +1 +1 -1 +1 +1 +1   │
+                    │    ...                              │
+                    └─────────────────────────────────────┘
+                    1 bit per pixel (stored as int8)
+
+Accumulator:        Tracks running vote tally
+                    ┌─────────────────────────────────────┐
+                    │  After 60 frames: +24 -18 +32 +8 ...│
+                    └─────────────────────────────────────┘
+                    int16 per pixel (range: -N to +N)
+
+Final decode:       Sign → QR pattern
+                    Magnitude → payload data
+```
+
+### Encoding via Probability Bias
+
+Instead of storing a target value, we bias the probability of +1 vs -1:
+
+```
+White QR module:  P(+1) = 0.8    →  trends positive over N frames
+Black QR module:  P(+1) = 0.2    →  trends negative over N frames
+
+After N=60 frames:
+  White pixel: expected sum = 60 × (0.8 - 0.2) = +36
+  Black pixel: expected sum = 60 × (0.2 - 0.8) = -36
+
+Payload encoded by adjusting bias strength:
+  bit=1: stronger bias (0.85)  →  higher magnitude
+  bit=0: weaker bias (0.75)    →  lower magnitude
+```
+
+### Memory Comparison
+
+At 1080p (1920×1080) with N=60 frames:
+
+```
+                        Binary Static    Float Analog    Savings
+                        ─────────────    ────────────    ───────
+Per frame:                 1.98 MB         7.91 MB         4×
+Stream (60 frames):      118.65 MB       474.61 MB         4×
+Accumulator:               3.96 MB         7.91 MB         2×
+
+Theoretical minimum (packed bits):
+Per frame:                 0.25 MB            —            32×
+Stream (60 frames):       14.83 MB            —            32×
+```
+
+### Usage
+
+```python
+from qr_static_binary import (
+    encode_binary,
+    accumulate,
+    extract_qr,
+    scan_qr,
+    decode_payload,
+)
+
+qr_key = "hidden-message"
+payload = b"Secret data"
+frame_shape = (64, 64)
+n_frames = 60
+
+# Encode into binary static frames
+frames = encode_binary(qr_key, frame_shape, n_frames, base_bias=0.8,
+                       payload=payload, payload_bias_delta=0.1)
+
+# Each frame is just +1/-1 per pixel
+print(frames[0].dtype)  # int8
+print(set(frames[0].flatten()))  # {-1, 1}
+
+# Accumulate
+accumulated = accumulate(frames)  # int16 array
+
+# Decode
+qr_matrix = extract_qr(accumulated)
+qr_content = scan_qr(qr_matrix)  # "hidden-message"
+
+decoded = decode_payload(accumulated, qr_key, n_frames, len(payload))
+# b"Secret data"
+```
+
+### Streaming API
+
+```python
+from qr_static_binary import BinaryStreamEncoder, BinaryStreamDecoder
+
+encoder = BinaryStreamEncoder((64, 64), "stream-key", n_frames=60, base_bias=0.8)
+decoder = BinaryStreamDecoder(n_frames=60)
+
+for i in range(120):
+    frame = encoder.next_frame()  # int8 array of +1/-1
+    result, accumulated = decoder.push_frame(frame)
+    if result:
+        print(f"Frame {i}: QR = {result}")
+```
+
+### Properties
+- True binary static (authentic TV snow appearance)
+- 1 bit per pixel in carrier frames
+- 4× memory reduction vs float approach
+- Grayscale is temporal, not per-frame
+- Same sign/magnitude payload encoding as analog
+
+---
+
 ## Signal vs Noise Theory
 
 All analog approaches rely on signal accumulating faster than noise:
@@ -400,6 +535,7 @@ python demo.py           # Binary XOR
 python demo_analog.py    # Analog grayscale
 python demo_layered.py   # Two-layer recursive
 python demo_sliding.py   # Sliding window
+python demo_binary.py    # Binary static (memory-efficient)
 ```
 
 ## Properties
