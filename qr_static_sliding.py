@@ -350,8 +350,9 @@ def decode_l2(
         deviation = magnitude - l1_signal
         l2_accumulated += deviation
 
-    # Extract L2 QR from sign
-    qr2_matrix = (l2_accumulated <= 0).astype(np.uint8)
+    # L2 accumulated has pattern qr1*qr2, multiply by qr1 to isolate qr2
+    l2_corrected = l2_accumulated * qr1_signs
+    qr2_matrix = (l2_corrected <= 0).astype(np.uint8)
     l2_qr_content = scan_qr(qr2_matrix)
 
     if not l2_qr_content:
