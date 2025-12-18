@@ -247,19 +247,23 @@ The most sophisticated approach. Overlapping windows create smooth carrier video
 ```
                        SLIDING WINDOW (50% overlap)
 
-    Frame index:  0    10    20    30    40    50    60    70    80
-                  │     │     │     │     │     │     │     │     │
-    Window A:     ├─────────────────────────────┤
-                  │◄──────── N=60 frames ──────►│
+    Frame index:  0         30         60         90        120
+                  │          │          │          │          │
+    Window A:     ├──────────────────────┤
+                  │◄───── N=60 frames ──►│
 
-    Window B:                 ├─────────────────────────────┤
-                              │◄──────── N=60 frames ──────►│
+    Window B:                ├──────────────────────┤
+                             │◄───── N=60 frames ──►│
 
-    Window C:                             ├─────────────────────────────┤
-                                          │◄──────── N=60 frames ──────►│
+    Window C:                           ├──────────────────────┤
+                                        │◄───── N=60 frames ──►│
 
-    ───────────────────────────────────────────────────────────────────►
-                                                                    time
+    ──────────────────────────────────────────────────────────────────►
+                                                                   time
+
+    Window A: frames 0-59      ─┬─ 30 frames overlap (50%)
+    Window B: frames 30-89     ─┘─┬─ 30 frames overlap (50%)
+    Window C: frames 60-119       ─┘
 
     Each window decodes to the same QR.
     Decoder can lock on at ANY frame — no fixed boundaries to detect.
