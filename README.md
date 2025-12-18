@@ -410,6 +410,64 @@ python demo_sliding.py   # Sliding window
 - Analog versions: magnitude carries hidden payload
 - Sliding window: no detectable boundaries in carrier
 
+## Future Ideas
+
+### Rotated QR Overlay
+
+Overlay multiple QR codes at different rotations (0°, 90°) with different magnitudes:
+
+```
+QR_A (0°):   magnitude 2.0    ─┐
+QR_B (90°):  magnitude 0.5    ─┴─→  Combined signal at each pixel
+
+Pixel values:  -2.5   -1.5   +1.5   +2.5
+               ────   ────   ────   ────
+Signs:         A- B-  A- B+  A+ B-  A+ B+
+```
+
+**Decoding:**
+- Sign of total → dominant QR (A)
+- Magnitude deviation → secondary QR (B)
+
+**Benefits:**
+- Two independent data channels in same frame
+- Combined pattern doesn't look like a QR code (harder to detect)
+- Rotation makes patterns spatially independent
+
+Could extend to 4 rotations (0°, 90°, 180°, 270°) with decreasing magnitudes.
+
+### Improved Magnitude Encoding
+
+Current implementation uses simple 1-bit encoding with tight margins:
+
+```
+Current:     ──────[1.5]──────[2.0]──────[2.5]──────
+                   bit 0    threshold    bit 1
+                        ←─ ±0.5 margin ─→
+```
+
+**Ideas for improvement:**
+
+1. **Wider spacing** — trade capacity for noise tolerance
+   ```
+   ────[0.0]────────────[2.5]────────────[5.0]────
+       bit 0          threshold          bit 1
+                   ←─ ±1.25 margin ─→
+   ```
+
+2. **Multi-level encoding** — more bits per pixel
+   ```
+   ──[0.5]──[1.0]──[1.5]──[2.0]──[2.5]──[3.0]──[3.5]──
+      00     01     10     11
+           2 bits per pixel
+   ```
+
+3. **Error-correcting codes** — Reed-Solomon or LDPC on the payload bits
+
+4. **Adaptive thresholds** — measure noise floor, adjust decision boundaries
+
+5. **Majority voting** — current implementation maps each bit to multiple pixels; could use weighted voting based on confidence
+
 ## License
 
 MIT
