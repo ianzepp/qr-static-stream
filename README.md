@@ -47,6 +47,32 @@ Layer 3: Apply key      → decode payload from magnitude (depth)
 
 The QR code capacity is ~3KB. But the magnitude data (how deep each peak/valley is) can store much more. The QR acts as a header containing the key to unlock the larger payload hidden in the depth information.
 
+## Two-Layer Recursive Steganography (`qr_static_layered.py`)
+
+A video within a video within a video:
+
+```
+Carrier frames (static)
+    ↓ accumulate N₁ frames
+Layer 1 output (QR₁ visible in sign)
+    ↓ accumulate N₂ Layer 1 outputs
+Layer 2 output (QR₂ visible in magnitude deviation + payload)
+```
+
+Four secrets required to unlock the deepest layer:
+1. **N₁** - number of carrier frames per Layer 1 output
+2. **N₂** - number of Layer 1 outputs per Layer 2 output
+3. **QR₁** - Layer 1 QR content (validates structure)
+4. **QR₂** - Layer 2 QR content (key to decode payload)
+
+### Capacity
+
+At 1080p (1920x1080) with 30fps video and N₁=N₂=30:
+- Layer 1 emerges every 1 second
+- Layer 2 emerges every 30 seconds
+- Payload capacity: ~250KB per Layer 2 output
+- 10-minute video: ~5MB hidden payload
+
 ## Installation
 
 ```bash
@@ -115,11 +141,31 @@ for i in range(24):
         print(f"QR: {qr_content}, Payload: {payload}")
 ```
 
+### Two-Layer Steganography
+
+```python
+from qr_static_layered import encode, decode
+
+# Four secrets
+layer1_key = "visible-qr"
+layer2_key = "hidden-qr"
+payload = b"Deep secret message!"
+n1, n2 = 30, 30  # Frame counts
+
+# Encode: generates n1 * n2 = 900 carrier frames
+frames = encode(layer1_key, layer2_key, payload, (64, 64), n1, n2)
+
+# Decode: requires knowing n1, n2, and payload length
+l1_qr, l2_qr, decoded_payload = decode(frames, n1, n2, len(payload))
+# l1_qr = "visible-qr", l2_qr = "hidden-qr", decoded_payload = b"Deep secret message!"
+```
+
 ## Demos
 
 ```bash
 python demo.py          # Binary XOR demo
 python demo_analog.py   # Analog grayscale demo
+python demo_layered.py  # Two-layer recursive demo
 ```
 
 ## How It Works
