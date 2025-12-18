@@ -23,7 +23,27 @@ Frame 1        Frame 2        Frame 3           Frame N
                            ███████████████
 ```
 
-**N is a secret key** — wrong N yields garbage.
+### Layered Keys
+
+**N is only the first key.** Wrong N yields garbage — but knowing N is just the beginning.
+
+```
+┌─────────────────────────────────────────────────────────────────────────┐
+│  Layer   │  Key              │  Unlocks                                 │
+├──────────┼───────────────────┼──────────────────────────────────────────┤
+│  0       │  N (frame count)  │  Ability to accumulate correctly         │
+│  1       │  QR content       │  The visible message OR a decryption key │
+│  2       │  Magnitude data   │  Payload hidden in "how far" from zero   │
+│  3       │  L2 QR content    │  Key to decode deeper payload stream     │
+└─────────────────────────────────────────────────────────────────────────┘
+```
+
+The QR code that emerges can be:
+- **Public data** — a message, URL, or identifier visible to anyone who knows N
+- **A decryption key** — unlocks the magnitude data (how deep each peak/valley goes)
+- **A nested key** — points to another layer of steganography in the L2 stream
+
+Each layer requires the previous layer's key. An attacker who doesn't know N sees noise. One who knows N but not the QR meaning sees a QR code but can't decode the magnitude payload. The deeper you go, the more keys you need.
 
 ---
 
