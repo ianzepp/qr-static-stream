@@ -27,3 +27,6 @@ venv/
 *.swp
 *.swo
 .DS_Store
+
+# Audio files (generated)
+*.wav
